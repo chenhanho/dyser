@@ -1,0 +1,13 @@
+2 2
+S 0 0 E 5
+S 1 0 E W
+S 2 0 6 W
+S 0 1 E 3
+S 1 1 E W
+S 2 1 4 W
+S 0 2 E 1
+S 1 2 E W
+S 2 2 2 W
+S 1 0 S 6
+S 1 1 S N
+S 1 2 1 N

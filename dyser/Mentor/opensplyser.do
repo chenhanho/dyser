@@ -1,0 +1,3 @@
+onbreak {quit}
+
+run -all

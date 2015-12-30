@@ -1,0 +1,27 @@
+2 2
+
+S 0 0 SE 4
+S 0 1 NE 3
+FU 0 0 NW SW no T 01
+S 1 1 S NW
+S 1 2 1 N
+
+S 0 1 SE 2
+S 0 2 NE 1
+FU 0 1 NW SW no T 01
+S 1 2 0 NW
+
+S 1 0 SE 6
+S 0 0 E 5
+S 1 0 S W
+S 1 1 NE N
+FU 1 0 NW SW no T 01
+S 2 1 5 NW
+
+S 0 2 E 0
+S 1 2 NE W
+S 1 0 E 7
+S 2 0 S W
+S 2 1 SW N
+FU 1 1 SW NE no T 01
+S 2 2 3 NW
