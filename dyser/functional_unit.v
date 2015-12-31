@@ -4,7 +4,6 @@
 // responsible for computation.
 //
 
-// new things todo.. one universial stage, meta bit clean up
 // metabits: valid ready
 `include "dyser_config.v"
 
@@ -52,20 +51,21 @@ output [`PATH_WIDTH:0] d_out_SE;
 //  
 /////////////////////////////////////
 
-reg    [`PATH_WIDTH:0] d_in_R;     // to computational unit right operand
-reg    [`PATH_WIDTH:0] d_in_L;     // to computational unit left operand
-reg    [`PATH_WIDTH:0] d_in_T;   // third input: now only used for Sel and Predicate
-reg    [`PATH_WIDTH:0] d_in_output_mux;   // output selection
+reg    [`PATH_WIDTH:0] d_in_R;     // to computational unit input 0
+reg    [`PATH_WIDTH:0] d_in_L;     // to computational unit input 1
+reg    [`PATH_WIDTH:0] d_in_Pred;   // Pred input
 
 wire   [`DATA_WIDTH:0] d_out_comp; // computational unit output
-wire                   c_out_stage;
-wire                   done_comp;
-wire                   done;
+reg    [`PATH_WIDTH:0] d_out_fu;   // fu output
 
-//reg                   c_out_NW;
-//reg                   c_out_NE;
-//reg                   c_out_SE;
-//reg                   c_out_SW;
+wire   [`PATH_WIDTH:0] d_out_L_stage;
+wire   [`PATH_WIDTH:0] d_out_R_stage;
+wire   [`PATH_WIDTH:0] d_out_Pred_stage;
+wire                   c_out_L_stage;
+wire                   c_out_R_stage;
+wire                   c_out_Pred_stage;
+wire                   done;
+wire                   done_Pred;
 
 ///////////////////////////////////////
 //
@@ -79,8 +79,6 @@ reg             [31:0] constant1;
 wire            [31:0] conf_in; 
 wire            [15:0] conf_comp; 
 wire            [15:0] conf_fu; 
-
-wire            [`PATH_WIDTH:0] d_out_SE_stage;
 
 // configuration register
 always @(posedge clk or negedge rst_n)
@@ -99,7 +97,7 @@ end
 
 // configuration path
 assign conf_in  = d_in_SE[`PATH_WIDTH:`META_BITS];// input path
-assign d_out_SE = (conf_en)? {constant1,2'b0} : d_out_SE_stage; // output path
+assign d_out_SE = (conf_en)? {constant1,2'b0} : d_out_fu; // output path
 assign conf_comp= conf[15:0];
 assign conf_fu  = conf[31:16];
 
@@ -109,12 +107,11 @@ assign conf_fu  = conf[31:16];
 //  
 /////////////////////////////////////
 
-// conf_fu [2:0]   R mux select
-// conf_fu [5:3]   L mux select
-// conf_fu [7:6]   T select
-// conf_fu [8]     Sel function
-// conf_fu [9]     Phi function
-// conf_fu [11:10] Predicate
+// conf_fu [2:0] R mux select
+// conf_fu [5:3] L mux select
+// conf_fu [7:6] Predicate mux select
+// conf_fu [9:8] Predicate function
+// conf_fu [10] Phi function
 
 // NW: 001   NE: 010
 // SW: 000   SE: 011
@@ -143,41 +140,90 @@ always @(*)
     default: d_in_L  = 0;
   endcase
 
-// T input
+// Pred input
 always @(*) 
   case(conf_fu[7:6])
-    2'b00: d_in_T  = d_in_SW;
-    2'b01: d_in_T  = d_in_NW;
-    2'b10: d_in_T  = d_in_NE;
-    2'b11: d_in_T  = d_in_SE;
+    2'b00: d_in_Pred  = d_in_SW;
+    2'b01: d_in_Pred  = d_in_NW;
+    2'b10: d_in_Pred  = d_in_NE;
+    2'b11: d_in_Pred  = d_in_SE;
   endcase
 
 // a decoder to forward credit to the correct direction [FIXME: priority queue can be improved]
-assign c_out_SW = (~done)              ?        1'b0 :    // not done yet
-                  (conf_fu[2:0] == 3'b000)? c_out_stage :    // if SW is R input 
-                  (conf_fu[5:3] == 3'b000)? c_out_stage :    // if SW is L input
-                  (conf_fu[8:6] == 3'b100)? c_out_stage :    // if SW is T input
-                                                1'b0 ;    // if SW is off
+assign c_out_SW= //(~done)              ?        1'b0 :    // not done yet
+                 (conf_fu[2:0] == 3'b000)? c_out_R_stage :    // if SW is R input 
+                 (conf_fu[5:3] == 3'b000)? c_out_L_stage :    // if SW is L input
+                 (conf_fu[8:6] == 3'b100)? c_out_Pred_stage :  // if SW is Pred input
+                                            1'b0 ;    // if SW is off
 
-assign c_out_NW = (~done)              ?        1'b0 :    // not done yet
-                  (conf_fu[2:0] == 3'b001)? c_out_stage :    // if NW is R input 
-                  (conf_fu[5:3] == 3'b001)? c_out_stage :    // if NW is L input
-                  (conf_fu[8:6] == 3'b101)? c_out_stage :    // if SW is T input
-                                                1'b0 ;    // if NW is off
+assign c_out_NW = //(~done)              ?        1'b0 :    // not done yet
+                  (conf_fu[2:0] == 3'b001)? c_out_R_stage :  // if NW is R input 
+                  (conf_fu[5:3] == 3'b001)? c_out_L_stage :  // if NW is L input
+                  (conf_fu[8:6] == 3'b101)? c_out_Pred_stage :  // if SW is Pred input
+                                            1'b0 ;    // if NW is off
 
-assign c_out_NE = (~done)              ?        1'b0 :    // not done yet
-                  (conf_fu[2:0] == 3'b010)? c_out_stage :    // if NE is R input 
-                  (conf_fu[5:3] == 3'b010)? c_out_stage :    // if NE is L input
-                  (conf_fu[8:6] == 3'b110)? c_out_stage :    // if SW is T input
-                                                1'b0 ;    // if NE is off
-                
-assign c_out_SE = (~done)              ?        1'b0 :    // not done yet
-                  (conf_fu[2:0] == 3'b011)? c_out_stage :    // if SE is R input 
-                  (conf_fu[5:3] == 3'b011)? c_out_stage :    // if SE is L input
-                  (conf_fu[8:6] == 3'b111)? c_out_stage :    // if SW is T input
+assign c_out_NE = //(~done)              ?        1'b0 :    // not done yet
+                  (conf_fu[2:0] == 3'b010)? c_out_R_stage :  // if NE is R input 
+                  (conf_fu[5:3] == 3'b010)? c_out_L_stage :  // if NE is L input
+                  (conf_fu[8:6] == 3'b110)? c_out_Pred_stage :  // if SW is Pred input
+                                            1'b0 ;    // if NE is off
+               
+assign c_out_SE = //(~done)              ?        1'b0 :    // not done yet
+                  (conf_fu[2:0] == 3'b011)? c_out_R_stage :  // if SE is R input 
+                  (conf_fu[5:3] == 3'b011)? c_out_L_stage :  // if SE is L input
+                  (conf_fu[8:6] == 3'b111)? c_out_Pred_stage :  // if SW is Pred input
                                                 1'b0 ;    // if SE is off
-                
+ 
+/////////////////////////////////////
+//
+//  input stage
+//  
+/////////////////////////////////////
 
+// if current input is ready, and there is credit in but not done, block credit signals
+
+stage #(ID, 0) L_stage(
+    .ready_in(d_in_L[0] ),
+    .valid_in(d_in_L[1]),
+    .credit_in(c_in_SE & done), 
+    .data_in(d_in_L[`PATH_WIDTH:`META_BITS]), // data only
+    .clk(clk | conf_en),
+    .rst_n(rst_n),
+    // output
+    .credit_out(c_out_L_stage),
+    .data_out(d_out_L_stage[`PATH_WIDTH:`META_BITS]),
+    .valid_out(d_out_L_stage[1]),
+    .ready_out(d_out_L_stage[0]));
+
+
+stage #(ID, 0) R_stage(
+    .ready_in(d_in_R[0] ),
+    .valid_in(d_in_R[1]),
+    .credit_in(c_in_SE & done),
+    .data_in(d_in_R[`PATH_WIDTH:`META_BITS]), // data only
+    .clk(clk | conf_en),
+    .rst_n(rst_n),
+    // output
+    .credit_out(c_out_R_stage),
+    .data_out(d_out_R_stage[`PATH_WIDTH:`META_BITS]),
+    .valid_out(d_out_R_stage[1]),
+    .ready_out(d_out_R_stage[0]));
+
+
+stage #(ID, 0) Pred_stage(
+    .ready_in(d_in_Pred[0] ),
+    .valid_in(d_in_Pred[1]),
+    .credit_in(c_in_SE & done),
+    .data_in(d_in_Pred[`PATH_WIDTH:`META_BITS]), // data only
+    .clk(clk | conf_en),
+    .rst_n(rst_n),
+    // output
+    .credit_out(c_out_Pred_stage),
+    .data_out(d_out_Pred_stage[`PATH_WIDTH:`META_BITS]),
+    .valid_out(d_out_Pred_stage[1]),
+    .ready_out(d_out_Pred_stage[0]));
+
+             
 /////////////////////////////////////
 //
 //  computational logic
@@ -186,86 +232,24 @@ assign c_out_SE = (~done)              ?        1'b0 :    // not done yet
 
 // computation logic take ready as start, don't care if it is valid [FIXME for optimize power]
 comp_logic #(TYPE) comp_0(
-    .ready_in(d_in_R[0] & d_in_L[0]),//[TODO] Select function
-    .d_in_R(conf_en ? 32'd0 : d_in_R[`PATH_WIDTH:`META_BITS]),
-    .d_in_L(conf_en ? 32'd0 : d_in_L[`PATH_WIDTH:`META_BITS]),
+    .ready_in(d_out_R_stage[0] & d_out_L_stage[0]),
+    .d_in_R(conf_en ? 32'd0 : d_out_R_stage[`PATH_WIDTH:`META_BITS]),
+    .d_in_L(conf_en ? 32'd0 : d_out_L_stage[`PATH_WIDTH:`META_BITS]),
     .conf(conf_comp), // comp logic control
     .clk(clk),
     .rst_n(rst_n),
     //output
     .d_out(d_out_comp), //data only
-    .done(done_comp));
+    .done(done));
 
-/////////////////////////////////////
-//
-//  Sel logic
-//  
-/////////////////////////////////////
+assign done_Pred  = d_out_L_stage[0] & d_out_R_stage[0];
 
-wire [`PATH_WIDTH:0] d_out_Sel;     
-wire                 valid_Sel;    
-wire                 done_Sel;     
-
-assign d_out_Sel = (d_in_T[2])? d_in_L : d_in_R;
-assign valid_Sel =  d_in_L[1] & d_in_R[1] & d_in_T[1];
-assign done_Sel  =  d_in_L[0] & d_in_R[0] & d_in_T[0];
-
-/////////////////////////////////////
-//
-//  Phi logic
-//  
-/////////////////////////////////////
-
-wire [`PATH_WIDTH:0] d_out_Phi;     
-wire                 done_Phi;     
-
-assign d_out_Phi = d_in_L[1]? d_in_L : d_in_R; //one input will be valid for sure
-assign done_Phi  = d_in_L[0] & d_in_R[0];
-
-/////////////////////////////////////
-//
-//  Predicate logic
-//  
-/////////////////////////////////////
-
-reg Predicate;
-reg ready_Pred;
-
-always@(*)
-  case(conf_fu[11:10])
-    2'b00: {Predicate, ready_Pred} = {1'b1, 1'b1}; //no predicate
-    2'b01: {Predicate, ready_Pred} = {d_in_T[1] & d_in_T[2], d_in_T[0]}; 
-    2'b10: {Predicate, ready_Pred} = {1'b1, 1'b1}; 
-    2'b11: {Predicate, ready_Pred} = {d_in_T[1] & ~d_in_T[2], d_in_T[0]}; // inverted
+always @(*)
+  case(conf_fu[9:8])
+    2'b00: d_out_fu = {d_out_comp ,d_out_R_stage[1] & d_out_L_stage[1], done};
+    2'b01: d_out_fu = {(d_out_Pred_stage[3])? d_out_L_stage[`PATH_WIDTH:1] : d_out_R_stage[`PATH_WIDTH:1], done_Pred};
+    2'b10: d_out_fu = 0;
+    2'b11: d_out_fu = {(d_out_Pred_stage[3])? d_out_R_stage[`PATH_WIDTH:1] : d_out_L_stage[`PATH_WIDTH:1], done_Pred};
   endcase
-
-/////////////////////////////////////
-//
-//  Output mux and stage
-//  
-/////////////////////////////////////
-
-always@(*)
-  case(conf_fu[9:8]) // output can be from 00: comp result, 01 select node, 10 Phi node
-    2'b00: d_in_output_mux = {d_out_comp, d_in_R[1] & d_in_L[1] & Predicate, done_comp};      //comp logic
-    2'b01: d_in_output_mux = {d_out_Sel[`PATH_WIDTH:`META_BITS], valid_Sel, done_Sel};   //Sel
-    2'b10: d_in_output_mux = {d_out_Phi[`PATH_WIDTH:`META_BITS], d_out_Phi[1] & Predicate, done_Phi}; //Phi
-    2'b11: d_in_output_mux = 0;
-  endcase
-
-assign done = d_in_output_mux[0] & ready_Pred;
- 
-stage #(ID, 0) stage_0(
-    .ready_in(done),
-    .valid_in(d_in_output_mux[1]),
-    .credit_in(c_in_SE),
-    .data_in(d_in_output_mux[`PATH_WIDTH:`META_BITS]), // data only
-    .clk(clk | conf_en),
-    .rst_n(rst_n),
-    // output
-    .credit_out(c_out_stage),
-    .data_out(d_out_SE_stage[`PATH_WIDTH:`META_BITS]),
-    .valid_out(d_out_SE_stage[1]),
-    .ready_out(d_out_SE_stage[0]));
 
 endmodule

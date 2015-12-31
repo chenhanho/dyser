@@ -3,10 +3,8 @@
 
 //FIFO DEPTH
 //DOES NOT WORK FOR 1 ENTRY FIFO!
-`define  FIFO_SIZE 4
-`define  FIFO_PTR_SIZE 2 // log(fifo_size)
-`define  FIFO_WIDTH (`FIFO_SIZE - 1)
-`define  FIFO_PTR_WIDTH (`FIFO_PTR_SIZE - 1)
+`define  FIFO_DEPTH 4
+`define  FIFO_WIDTH (`FIFO_DEPTH - 1)
 
 // data path
 `define  DATA_BITS 32

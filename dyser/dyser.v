@@ -2,7 +2,6 @@
 //
 //  this file was auto-generated
 `include "dyser_config.v"
-//TODO: modify receive wrapper, only 1 output?
 
 module dyser(
   /* inputs */

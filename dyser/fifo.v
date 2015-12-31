@@ -42,15 +42,15 @@ reg                      c_out;
 //----------------------------
 
 reg  [`DATA_WIDTH:0]     data_array [`FIFO_WIDTH:0];
-reg  [`FIFO_PTR_WIDTH:0]     wr_ptr;
-reg  [`FIFO_PTR_WIDTH:0]     rd_ptr; 
+reg  [`FIFO_WIDTH:0]     wr_ptr;
+reg  [`FIFO_WIDTH:0]     rd_ptr; 
 
 //-------------------
 //      Wires
 //-------------------
 
-wire [`FIFO_PTR_WIDTH:0]     pred_wr_ptr; //possible next ptr
-wire [`FIFO_PTR_WIDTH:0]     pred_rd_ptr; //possible next ptr
+wire [`FIFO_WIDTH:0]     pred_wr_ptr; //possible next ptr
+wire [`FIFO_WIDTH:0]     pred_rd_ptr; //possible next ptr
 wire                     will_full;
 wire                     will_empty;
 reg                      incr_wr_ptr;
@@ -63,8 +63,8 @@ reg                      incr_rd_ptr;
 reg  [1:0]               state;
 
 // input logic
-assign pred_wr_ptr = (wr_ptr == `FIFO_WIDTH)? {`FIFO_PTR_WIDTH{1'b0}} : wr_ptr + 1'b1; 
-assign pred_rd_ptr = (rd_ptr == `FIFO_WIDTH)? {`FIFO_PTR_WIDTH{1'b0}} : rd_ptr + 1'b1; 
+assign pred_wr_ptr = (wr_ptr == `FIFO_WIDTH)? {`FIFO_WIDTH{1'b0}} : wr_ptr + 1'b1; 
+assign pred_rd_ptr = (rd_ptr == `FIFO_WIDTH)? {`FIFO_WIDTH{1'b0}} : rd_ptr + 1'b1; 
 //assign pred_rd_ptr = (rd_ptr == 0         )? LOG_FIFO_DEPTH{1'b1} : rd_ptr-1; 
 
 // predicated position of ptrs, assuming only one ptr is moving
@@ -191,7 +191,7 @@ begin
   if (~rst_n == 1'b1) begin
     wr_ptr      <= 0;
     rd_ptr      <= 0;
-    for ( i = 0; i < `FIFO_SIZE; i = i + 1) begin
+    for ( i = 0; i < `FIFO_DEPTH; i = i + 1) begin
       data_array [i] <= 0;
     end 
   end
